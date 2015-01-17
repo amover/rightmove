@@ -126,7 +126,7 @@ class RMsearch():
         response = self.br.open(url)
         splashSoup = BeautifulSoup(response.read())
         splashSoup.find('input',attrs={'type':'submit','value':'Find Properties'})
-        numPages = self.soupSearchText(splashSoup, c_pageOfNumPagesOnSearchResults)
+        numPages = self.soupSearchText(splashSoup, c_pageOfNumPagesOnSearchResults)[0].text
         if numPages == None:
             return
             
@@ -175,16 +175,18 @@ class RMsearch():
             ids.append(id)
             adate = self.today
             try:
-                price = int("".join([x for x in result.find('div', attrs={'class':'price-new'}).text if x in '0123456789']))
-                address = result.find('span', attrs={'class':'displayaddress'}).text
+                price = int("0"+"".join([x for x in result.find('div', attrs={'class':'price-new'}).text if x in '0123456789']))
+                address = result.find('span', attrs={'class':'displayaddress'})
+                if address:
+                    address = address.text
                 type = result.find(attrs={'class':'address bedrooms'}).findAll('span')[0].text
-                bedrooms = int(type.split()[0])
+                bedrooms = int("0"+"".join(re.findall('\d+',type)))
                 summary = result.find('p', attrs={'class':'description'}).text
                 img = result.find('img').get('src') 
                 cdate = adate
                 agent_detail = result.find('p', attrs={'class':'branchblurb'}).text
                 #~ pdate_added = result.find('p',attrs={'class'='
-            except ValueError:
+            except TypeError:
                 logger.info( "FAILED :"+str(id))
                 continue
             #~"id, price, postcode, adate, cdate, address, type, bedrooms, img, summary, coordinates, detail"   
@@ -201,9 +203,9 @@ class RMsearch():
             else:
                 new_prop = pd.DataFrame(prop,index=[id])
                 if len(curr)>0:
-                    logger.info("Change:%d at price %d: %d bedrooms. Previously at:"%(id,price,bedrooms)+",".join([str(x) for x in curr.price.values]))
+                    logger.info("Change:%s in %s for price %d: %d bedrooms. Previously at:"%(type,postcode,price,bedrooms)+",".join([str(x) for x in curr.price.values]))
                 else:
-                    logger.info("New:%d at price %d: %d bedrooms"%(id,price,bedrooms))
+                    logger.info("New:%s in %s for price %d: %d bedrooms"%(type,postcode,price,bedrooms))
                 #~ new_prop.set_index(['id','price'],inplace=True)
                 self.table = pd.concat([self.table,new_prop])
             #~ self.table.loc[(id,pprice),:] =a pd.Series(prop[2:])
@@ -252,19 +254,19 @@ class RMsearch():
             res = soup.findAll(search[0], attrs=search[1])
             
         if res:
-            if len(res)==1:
-                return res[0].text
-            else:
-                return res
+            return res
         else:
             return None
     
     def updateAll(self):
-        for c in self.table['postcode']:
+        for c in self.table.postcode.unique():
             self.search(c)
+            
 
 
 r=RMsearch()
-r.search('MK11')
-a=r.describe()
+#~ r.search('MK11')
+#~ a=r.describe()
+r.updateAll()
+r.save()
 #~ r.save()
